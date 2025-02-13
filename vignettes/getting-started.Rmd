@@ -1,0 +1,114 @@
+---
+title: "Getting Started with Argentum"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with Argentum}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+Argentum is an R package that simplifies access to WFS (Web Feature Service) and WMS (Web Map Service) data from various Argentine organizations. This vignette will guide you through the basic usage of the package.
+
+## Installation
+
+You can install the development version of Argentum from GitHub:
+
+```{r eval=FALSE}
+# install.packages("devtools")
+devtools::install_github("your-username/Argentum")
+```
+
+## Basic Usage
+
+### Listing Available Organizations
+
+The first step is to see what organizations have available data:
+
+```{r eval=FALSE}
+library(Argentum)
+
+# Get list of organizations
+organizations <- argentum_list_organizations()
+print(organizations)
+```
+
+This will show you a data frame with organizations and their WFS/WMS URLs.
+
+### Selecting an Organization
+
+You can select an organization either interactively or programmatically:
+
+```{r eval=FALSE}
+# Interactive selection
+selected_org <- argentum_select_organization()
+
+# Search for specific organizations
+buenos_aires_org <- argentum_select_organization(search = "Buenos Aires")
+```
+
+### Listing Available Layers
+
+Once you've selected an organization, you can see what layers they provide:
+
+```{r eval=FALSE}
+# List available layers
+layers <- argentum_list_layers(selected_org$Name)
+print(layers)
+```
+
+### Importing Data
+
+To import a specific layer:
+
+```{r eval=FALSE}
+# Import a specific layer
+sf_layer <- argentum_import_wfs_layer(
+  wfs_url = selected_org$WFS_URL,
+  layer_name = layers$Name[1]
+)
+
+# Basic plot of the imported data
+plot(sf_layer)
+```
+
+### Interactive Import
+
+For a guided experience, use the interactive import function:
+
+```{r eval=FALSE}
+sf_layer <- argentum_interactive_import()
+```
+
+This will guide you through the process step by step.
+
+## Error Handling
+
+Argentum includes robust error handling. Here's how to use it:
+
+```{r eval=FALSE}
+tryCatch({
+  sf_layer <- argentum_import_wfs_layer(
+    wfs_url = "http://example.com/wfs",
+    layer_name = "example_layer"
+  )
+}, error = function(e) {
+  message("Error occurred: ", e$message)
+})
+```
+
+## Next Steps
+
+For more detailed information about working with WFS and WMS services, see the "Working with WFS/WMS Services" vignette:
+
+```{r eval=FALSE}
+vignette("argentum", package = "Argentum")
+```
