@@ -12,7 +12,7 @@
 
 
 
-<title>Getting Started with Argentum</title>
+<title>Getting started</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -48,8 +48,9 @@ overflow: visible;
 }
 </style>
 <style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
 .sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
@@ -336,90 +337,137 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
-<h1 class="title toc-ignore">Getting Started with Argentum</h1>
+<h1 class="title toc-ignore">Getting started</h1>
 
 
 
-<div id="introduction" class="section level2">
-<h2>Introduction</h2>
-<p>Argentum is an R package that simplifies access to WFS (Web Feature
-Service) and WMS (Web Map Service) data from various Argentine
-organizations. This vignette will guide you through the basic usage of
-the package.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(Argentum)</span></code></pre></div>
+<div id="what-this-package-talks-to" class="section level2">
+<h2>What this package talks to</h2>
+<p>Two OGC standards, and the difference between them decides which
+function you reach for.</p>
+<p><strong>WFS</strong> returns <em>features</em>: geometries with
+attributes, which you can filter, join, measure and reproject. You get
+an <code>sf</code> object. Use it when you need the data.</p>
+<p><strong>WMS</strong> returns a <em>picture</em>: the server draws the
+map with its own cartography and sends you pixels. You get a
+<code>terra::SpatRaster</code>. Use it when you need a backdrop, an
+orthophoto, or a layer the publisher only exposes as imagery.</p>
+<p>Most organizations publish both.
+<code>argentum_organizations()</code> tells you which.</p>
 </div>
-<div id="installation" class="section level2">
-<h2>Installation</h2>
-<p>You can install the development version of Argentum from GitHub:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># install.packages(&quot;devtools&quot;)</span></span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>devtools<span class="sc">::</span><span class="fu">install_github</span>(<span class="st">&quot;your-username/Argentum&quot;</span>)</span></code></pre></div>
+<div id="finding-an-endpoint" class="section level2">
+<h2>Finding an endpoint</h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>orgs <span class="ot">&lt;-</span> <span class="fu">argentum_organizations</span>()</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">nrow</span>(orgs)</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="fu">head</span>(orgs<span class="sc">$</span>name)</span></code></pre></div>
+<p>The catalogue is cached, so this is fast after the first call. To
+search it:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">argentum_search_organizations</span>(<span class="st">&quot;catastro&quot;</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="fu">argentum_search_organizations</span>(<span class="st">&quot;buenos aires&quot;</span>, <span class="at">service =</span> <span class="st">&quot;wms&quot;</span>)</span></code></pre></div>
+<p>Every reading function accepts either a catalogue <code>name</code>
+or a bare URL, so you never <em>have</em> to go through the
+catalogue:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>ign <span class="ot">&lt;-</span> <span class="st">&quot;https://wms.ign.gob.ar/geoserver/ows&quot;</span></span></code></pre></div>
 </div>
-<div id="basic-usage" class="section level2">
-<h2>Basic Usage</h2>
-<div id="listing-available-organizations" class="section level3">
-<h3>Listing Available Organizations</h3>
-<p>The first step is to see what organizations have available data:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">library</span>(Argentum)</span>
-<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co"># Get list of organizations</span></span>
-<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>organizations <span class="ot">&lt;-</span> <span class="fu">argentum_list_organizations</span>()</span>
-<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="fu">print</span>(organizations)</span></code></pre></div>
-<p>This will show you a data frame with organizations and their WFS/WMS
-URLs.</p>
+<div id="seeing-what-is-published" class="section level2">
+<h2>Seeing what is published</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>layers <span class="ot">&lt;-</span> <span class="fu">argentum_layers</span>(ign)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>layers[, <span class="fu">c</span>(<span class="st">&quot;name&quot;</span>, <span class="st">&quot;title&quot;</span>, <span class="st">&quot;crs&quot;</span>)]</span></code></pre></div>
+<p>The <code>bbox</code> column reports each layer’s extent in WGS84. It
+is worth reading before you download: it tells you whether the layer
+covers the whole country or one province, which changes how you should
+filter.</p>
 </div>
-<div id="selecting-an-organization" class="section level3">
-<h3>Selecting an Organization</h3>
-<p>You can select an organization either interactively or
-programmatically:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Interactive selection</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>selected_org <span class="ot">&lt;-</span> <span class="fu">argentum_select_organization</span>()</span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="co"># Search for specific organizations</span></span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>buenos_aires_org <span class="ot">&lt;-</span> <span class="fu">argentum_select_organization</span>(<span class="at">search =</span> <span class="st">&quot;Buenos Aires&quot;</span>)</span></code></pre></div>
-</div>
-<div id="listing-available-layers" class="section level3">
-<h3>Listing Available Layers</h3>
-<p>Once you’ve selected an organization, you can see what layers they
-provide:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># List available layers</span></span>
-<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>layers <span class="ot">&lt;-</span> <span class="fu">argentum_list_layers</span>(selected_org<span class="sc">$</span>Name)</span>
-<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="fu">print</span>(layers)</span></code></pre></div>
-</div>
-<div id="importing-data" class="section level3">
-<h3>Importing Data</h3>
-<p>To import a specific layer:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Import a specific layer</span></span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>sf_layer <span class="ot">&lt;-</span> <span class="fu">argentum_import_wfs_layer</span>(</span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>  <span class="at">wfs_url =</span> selected_org<span class="sc">$</span>WFS_URL,</span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="at">layer_name =</span> layers<span class="sc">$</span>Name[<span class="dv">1</span>]</span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>)</span>
-<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a></span>
-<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="co"># Basic plot of the imported data</span></span>
-<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="fu">plot</span>(sf_layer)</span></code></pre></div>
-</div>
-<div id="interactive-import" class="section level3">
-<h3>Interactive Import</h3>
-<p>For a guided experience, use the interactive import function:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>sf_layer <span class="ot">&lt;-</span> <span class="fu">argentum_interactive_import</span>()</span></code></pre></div>
-<p>This will guide you through the process step by step.</p>
+<div id="reading-vector-data" class="section level2">
+<h2>Reading vector data</h2>
+<p>The simple case:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>provinces <span class="ot">&lt;-</span> <span class="fu">argentum_read_wfs</span>(ign, <span class="st">&quot;ign:provincia&quot;</span>)</span></code></pre></div>
+<p>The case you will actually use. Three filters, all evaluated on the
+server, so only the matching features cross the network:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">argentum_read_wfs</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  ign, <span class="st">&quot;ign:provincia&quot;</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="at">bbox   =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">59</span>, <span class="sc">-</span><span class="dv">35</span>, <span class="sc">-</span><span class="dv">57</span>, <span class="sc">-</span><span class="dv">34</span>),</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="at">crs    =</span> <span class="dv">4326</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>  <span class="at">filter =</span> <span class="st">&quot;nam = &#39;Buenos Aires&#39;&quot;</span></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>)</span></code></pre></div>
+<p><code>bbox</code> also accepts anything <code>sf::st_bbox()</code>
+understands, which is usually more convenient than typing
+coordinates:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>aoi <span class="ot">&lt;-</span> sf<span class="sc">::</span><span class="fu">read_sf</span>(<span class="st">&quot;my_study_area.gpkg&quot;</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">argentum_read_wfs</span>(ign, <span class="st">&quot;ign:localidad&quot;</span>, <span class="at">bbox =</span> aoi)</span></code></pre></div>
+<div id="layers-too-big-for-one-response" class="section level3">
+<h3>Layers too big for one response</h3>
+<p>Servers cap how many features they will return at once, and many
+Argentine deployments cap low. <code>argentum_read_wfs()</code> pages
+automatically: it requests <code>getOption(&quot;argentum.page_size&quot;)</code>
+features at a time and stops when the server returns a short page.</p>
+<p>If a particular server mishandles <code>startIndex</code> — some
+older MapServer builds do — turn paging off and cap the request
+instead:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">argentum_read_wfs</span>(ign, <span class="st">&quot;ign:localidad&quot;</span>, <span class="at">page_size =</span> <span class="cn">Inf</span>, <span class="at">max_features =</span> <span class="dv">1000</span>)</span></code></pre></div>
 </div>
 </div>
-<div id="error-handling" class="section level2">
-<h2>Error Handling</h2>
-<p>Argentum includes robust error handling. Here’s how to use it:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">tryCatch</span>({</span>
-<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  sf_layer <span class="ot">&lt;-</span> <span class="fu">argentum_import_wfs_layer</span>(</span>
-<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>    <span class="at">wfs_url =</span> <span class="st">&quot;http://example.com/wfs&quot;</span>,</span>
-<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>    <span class="at">layer_name =</span> <span class="st">&quot;example_layer&quot;</span></span>
-<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>  )</span>
-<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>}, <span class="at">error =</span> <span class="cf">function</span>(e) {</span>
-<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>  <span class="fu">message</span>(<span class="st">&quot;Error occurred: &quot;</span>, e<span class="sc">$</span>message)</span>
-<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>})</span></code></pre></div>
+<div id="writing-to-disk" class="section level2">
+<h2>Writing to disk</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>report <span class="ot">&lt;-</span> <span class="fu">argentum_download</span>(ign, <span class="at">dir =</span> <span class="st">&quot;data/ign&quot;</span>, <span class="at">format =</span> <span class="st">&quot;gpkg&quot;</span>)</span></code></pre></div>
+<p><code>argentum_download()</code> returns a report rather than
+stopping at the first failure, because in a bulk download over public
+infrastructure some layers <em>will</em> fail:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">subset</span>(report, status <span class="sc">==</span> <span class="st">&quot;error&quot;</span>)[, <span class="fu">c</span>(<span class="st">&quot;layer&quot;</span>, <span class="st">&quot;message&quot;</span>)]</span></code></pre></div>
+<p>Prefer <code>&quot;gpkg&quot;</code>. Shapefile truncates field names at ten
+characters, which mangles the descriptive Spanish column names these
+services tend to use.</p>
 </div>
-<div id="next-steps" class="section level2">
-<h2>Next Steps</h2>
-<p>For more detailed information about working with WFS and WMS
-services, see the “Working with WFS/WMS Services” vignette:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">vignette</span>(<span class="st">&quot;argentum&quot;</span>, <span class="at">package =</span> <span class="st">&quot;Argentum&quot;</span>)</span></code></pre></div>
+<div id="when-things-go-wrong" class="section level2">
+<h2>When things go wrong</h2>
+<p>Errors are classed conditions, so you can handle them selectively
+rather than catching everything:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">tryCatch</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  <span class="fu">argentum_read_wfs</span>(ign, <span class="st">&quot;ign:provincia&quot;</span>),</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="at">argentum_error_offline =</span> <span class="cf">function</span>(e) {</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>    <span class="fu">message</span>(<span class="st">&quot;No network; using last night&#39;s extract instead.&quot;</span>)</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>    sf<span class="sc">::</span><span class="fu">read_sf</span>(<span class="st">&quot;cache/provincias.gpkg&quot;</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>  }</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>)</span></code></pre></div>
+<p>The available classes are <code>argentum_error_offline</code>,
+<code>argentum_error_http</code>, <code>argentum_error_ogc</code> (the
+server returned a <code>ServiceExceptionReport</code>),
+<code>argentum_error_capabilities</code>,
+<code>argentum_error_read</code>,
+<code>argentum_error_unknown_org</code>,
+<code>argentum_error_no_endpoint</code> and
+<code>argentum_error_no_layers</code>.</p>
+</div>
+<div id="caching" class="section level2">
+<h2>Caching</h2>
+<p>The catalogue and every <code>GetCapabilities</code> document are
+cached in memory for the session and on disk between sessions:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">argentum_cache_path</span>()</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="fu">argentum_cache_clear</span>()</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="fu">options</span>(<span class="at">argentum.cache_ttl =</span> <span class="dv">60</span> <span class="sc">*</span> <span class="dv">60</span> <span class="sc">*</span> <span class="dv">24</span> <span class="sc">*</span> <span class="dv">7</span>)  <span class="co"># a week</span></span></code></pre></div>
+<p>This matters more than it sounds. <code>GetCapabilities</code> on a
+large GeoServer can take fifteen seconds, and every layer listing and
+every read needs one.</p>
+</div>
+<div id="using-your-own-catalogue" class="section level2">
+<h2>Using your own catalogue</h2>
+<p>The bundled catalogue is a snapshot. If you maintain your own list of
+endpoints — an internal SDI, or a corrected version of ours — point the
+package at it:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">options</span>(<span class="at">argentum.catalog =</span> <span class="st">&quot;endpoints.csv&quot;</span>)</span></code></pre></div>
+<p>The file needs the columns <code>level</code>,
+<code>jurisdiction</code>, <code>dependency</code>,
+<code>organization</code>, <code>updated</code>, <code>wms_url</code>,
+<code>wfs_url</code>, <code>wcs_url</code> and <code>csw_url</code>. A
+<code>name</code> column is optional; without it, names are built from
+the organization and whatever else identifies it. Files written for
+argentum 2.0.0, with <code>category</code>, <code>organization</code>,
+<code>wms_url</code> and <code>wfs_url</code>, are still accepted and
+keep their original names.</p>
+<p>The bundled snapshot comes from the <a href="https://www.idera.gob.ar/index.php/servicios/geoservicios">“Geoservicios_IDERA”
+spreadsheet</a>, the same source the ArgentinaGeoServices QGIS plugin
+reads, so both tools see the same endpoints.</p>
 </div>
 
 

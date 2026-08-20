@@ -1,55 +1,63 @@
 ## ----include = FALSE----------------------------------------------------------
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 
-## ----eval=FALSE---------------------------------------------------------------
-# # install.packages("devtools")
-# devtools::install_github("your-username/Argentum")
-
-## ----eval=FALSE---------------------------------------------------------------
+## ----setup--------------------------------------------------------------------
 # library(Argentum)
-# 
-# # Get list of organizations
-# organizations <- argentum_list_organizations()
-# print(organizations)
 
-## ----eval=FALSE---------------------------------------------------------------
-# # Interactive selection
-# selected_org <- argentum_select_organization()
-# 
-# # Search for specific organizations
-# buenos_aires_org <- argentum_select_organization(search = "Buenos Aires")
+## -----------------------------------------------------------------------------
+# orgs <- argentum_organizations()
+# nrow(orgs)
+# head(orgs$name)
 
-## ----eval=FALSE---------------------------------------------------------------
-# # List available layers
-# layers <- argentum_list_layers(selected_org$Name)
-# print(layers)
+## -----------------------------------------------------------------------------
+# argentum_search_organizations("catastro")
+# argentum_search_organizations("buenos aires", service = "wms")
 
-## ----eval=FALSE---------------------------------------------------------------
-# # Import a specific layer
-# sf_layer <- argentum_import_wfs_layer(
-#   wfs_url = selected_org$WFS_URL,
-#   layer_name = layers$Name[1]
+## -----------------------------------------------------------------------------
+# ign <- "https://wms.ign.gob.ar/geoserver/ows"
+
+## -----------------------------------------------------------------------------
+# layers <- argentum_layers(ign)
+# layers[, c("name", "title", "crs")]
+
+## -----------------------------------------------------------------------------
+# provinces <- argentum_read_wfs(ign, "ign:provincia")
+
+## -----------------------------------------------------------------------------
+# argentum_read_wfs(
+#   ign, "ign:provincia",
+#   bbox   = c(-59, -35, -57, -34),
+#   crs    = 4326,
+#   filter = "nam = 'Buenos Aires'"
 # )
-# 
-# # Basic plot of the imported data
-# plot(sf_layer)
 
-## ----eval=FALSE---------------------------------------------------------------
-# sf_layer <- argentum_interactive_import()
+## -----------------------------------------------------------------------------
+# aoi <- sf::read_sf("my_study_area.gpkg")
+# argentum_read_wfs(ign, "ign:localidad", bbox = aoi)
 
-## ----eval=FALSE---------------------------------------------------------------
-# tryCatch({
-#   sf_layer <- argentum_import_wfs_layer(
-#     wfs_url = "http://example.com/wfs",
-#     layer_name = "example_layer"
-#   )
-# }, error = function(e) {
-#   message("Error occurred: ", e$message)
-# })
+## -----------------------------------------------------------------------------
+# argentum_read_wfs(ign, "ign:localidad", page_size = Inf, max_features = 1000)
 
-## ----eval=FALSE---------------------------------------------------------------
-# vignette("argentum", package = "Argentum")
+## -----------------------------------------------------------------------------
+# report <- argentum_download(ign, dir = "data/ign", format = "gpkg")
+
+## -----------------------------------------------------------------------------
+# subset(report, status == "error")[, c("layer", "message")]
+
+## -----------------------------------------------------------------------------
+# result <- tryCatch(
+#   argentum_read_wfs(ign, "ign:provincia"),
+#   argentum_error_offline = function(e) {
+#     message("No network; using last night's extract instead.")
+#     sf::read_sf("cache/provincias.gpkg")
+#   }
+# )
+
+## -----------------------------------------------------------------------------
+# argentum_cache_path()
+# argentum_cache_clear()
+# options(argentum.cache_ttl = 60 * 60 * 24 * 7)  # a week
+
+## -----------------------------------------------------------------------------
+# options(argentum.catalog = "endpoints.csv")
 

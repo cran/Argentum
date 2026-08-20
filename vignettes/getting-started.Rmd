@@ -1,114 +1,180 @@
 ---
-title: "Getting Started with Argentum"
+title: "Getting started"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting Started with Argentum}
+  %\VignetteIndexEntry{Getting started}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
-)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
-## Introduction
-
-Argentum is an R package that simplifies access to WFS (Web Feature Service) and WMS (Web Map Service) data from various Argentine organizations. This vignette will guide you through the basic usage of the package.
-
-## Installation
-
-You can install the development version of Argentum from GitHub:
-
-```{r eval=FALSE}
-# install.packages("devtools")
-devtools::install_github("your-username/Argentum")
-```
-
-## Basic Usage
-
-### Listing Available Organizations
-
-The first step is to see what organizations have available data:
-
-```{r eval=FALSE}
+```{r setup}
 library(Argentum)
-
-# Get list of organizations
-organizations <- argentum_list_organizations()
-print(organizations)
 ```
 
-This will show you a data frame with organizations and their WFS/WMS URLs.
+## What this package talks to
 
-### Selecting an Organization
+Two OGC standards, and the difference between them decides which function you
+reach for.
 
-You can select an organization either interactively or programmatically:
+**WFS** returns *features*: geometries with attributes, which you can filter,
+join, measure and reproject. You get an `sf` object. Use it when you need the
+data.
 
-```{r eval=FALSE}
-# Interactive selection
-selected_org <- argentum_select_organization()
+**WMS** returns a *picture*: the server draws the map with its own cartography
+and sends you pixels. You get a `terra::SpatRaster`. Use it when you need a
+backdrop, an orthophoto, or a layer the publisher only exposes as imagery.
 
-# Search for specific organizations
-buenos_aires_org <- argentum_select_organization(search = "Buenos Aires")
+Most organizations publish both. `argentum_organizations()` tells you which.
+
+## Finding an endpoint
+
+```{r}
+orgs <- argentum_organizations()
+nrow(orgs)
+head(orgs$name)
 ```
 
-### Listing Available Layers
+The catalogue is cached, so this is fast after the first call. To search it:
 
-Once you've selected an organization, you can see what layers they provide:
-
-```{r eval=FALSE}
-# List available layers
-layers <- argentum_list_layers(selected_org$Name)
-print(layers)
+```{r}
+argentum_search_organizations("catastro")
+argentum_search_organizations("buenos aires", service = "wms")
 ```
 
-### Importing Data
+Every reading function accepts either a catalogue `name` or a bare URL, so you
+never *have* to go through the catalogue:
 
-To import a specific layer:
+```{r}
+ign <- "https://wms.ign.gob.ar/geoserver/ows"
+```
 
-```{r eval=FALSE}
-# Import a specific layer
-sf_layer <- argentum_import_wfs_layer(
-  wfs_url = selected_org$WFS_URL,
-  layer_name = layers$Name[1]
+## Seeing what is published
+
+```{r}
+layers <- argentum_layers(ign)
+layers[, c("name", "title", "crs")]
+```
+
+The `bbox` column reports each layer's extent in WGS84. It is worth reading
+before you download: it tells you whether the layer covers the whole country
+or one province, which changes how you should filter.
+
+## Reading vector data
+
+The simple case:
+
+```{r}
+provinces <- argentum_read_wfs(ign, "ign:provincia")
+```
+
+The case you will actually use. Three filters, all evaluated on the server, so
+only the matching features cross the network:
+
+```{r}
+argentum_read_wfs(
+  ign, "ign:provincia",
+  bbox   = c(-59, -35, -57, -34),
+  crs    = 4326,
+  filter = "nam = 'Buenos Aires'"
 )
-
-# Basic plot of the imported data
-plot(sf_layer)
 ```
 
-### Interactive Import
+`bbox` also accepts anything `sf::st_bbox()` understands, which is usually
+more convenient than typing coordinates:
 
-For a guided experience, use the interactive import function:
-
-```{r eval=FALSE}
-sf_layer <- argentum_interactive_import()
+```{r}
+aoi <- sf::read_sf("my_study_area.gpkg")
+argentum_read_wfs(ign, "ign:localidad", bbox = aoi)
 ```
 
-This will guide you through the process step by step.
+### Layers too big for one response
 
-## Error Handling
+Servers cap how many features they will return at once, and many Argentine
+deployments cap low. `argentum_read_wfs()` pages automatically: it requests
+`getOption("argentum.page_size")` features at a time and stops when the server
+returns a short page.
 
-Argentum includes robust error handling. Here's how to use it:
+If a particular server mishandles `startIndex` — some older MapServer builds
+do — turn paging off and cap the request instead:
 
-```{r eval=FALSE}
-tryCatch({
-  sf_layer <- argentum_import_wfs_layer(
-    wfs_url = "http://example.com/wfs",
-    layer_name = "example_layer"
-  )
-}, error = function(e) {
-  message("Error occurred: ", e$message)
-})
+```{r}
+argentum_read_wfs(ign, "ign:localidad", page_size = Inf, max_features = 1000)
 ```
 
-## Next Steps
+## Writing to disk
 
-For more detailed information about working with WFS and WMS services, see the "Working with WFS/WMS Services" vignette:
-
-```{r eval=FALSE}
-vignette("argentum", package = "Argentum")
+```{r}
+report <- argentum_download(ign, dir = "data/ign", format = "gpkg")
 ```
+
+`argentum_download()` returns a report rather than stopping at the first
+failure, because in a bulk download over public infrastructure some layers
+*will* fail:
+
+```{r}
+subset(report, status == "error")[, c("layer", "message")]
+```
+
+Prefer `"gpkg"`. Shapefile truncates field names at ten characters, which
+mangles the descriptive Spanish column names these services tend to use.
+
+## When things go wrong
+
+Errors are classed conditions, so you can handle them selectively rather than
+catching everything:
+
+```{r}
+result <- tryCatch(
+  argentum_read_wfs(ign, "ign:provincia"),
+  argentum_error_offline = function(e) {
+    message("No network; using last night's extract instead.")
+    sf::read_sf("cache/provincias.gpkg")
+  }
+)
+```
+
+The available classes are `argentum_error_offline`, `argentum_error_http`,
+`argentum_error_ogc` (the server returned a `ServiceExceptionReport`),
+`argentum_error_capabilities`, `argentum_error_read`,
+`argentum_error_unknown_org`, `argentum_error_no_endpoint` and
+`argentum_error_no_layers`.
+
+## Caching
+
+The catalogue and every `GetCapabilities` document are cached in memory for
+the session and on disk between sessions:
+
+```{r}
+argentum_cache_path()
+argentum_cache_clear()
+options(argentum.cache_ttl = 60 * 60 * 24 * 7)  # a week
+```
+
+This matters more than it sounds. `GetCapabilities` on a large GeoServer can
+take fifteen seconds, and every layer listing and every read needs one.
+
+## Using your own catalogue
+
+The bundled catalogue is a snapshot. If you maintain your own list of
+endpoints — an internal SDI, or a corrected version of ours — point the
+package at it:
+
+```{r}
+options(argentum.catalog = "endpoints.csv")
+```
+
+The file needs the columns `level`, `jurisdiction`, `dependency`,
+`organization`, `updated`, `wms_url`, `wfs_url`, `wcs_url` and `csw_url`. A
+`name` column is optional; without it, names are built from the organization
+and whatever else identifies it. Files written for argentum 2.0.0, with
+`category`, `organization`, `wms_url` and `wfs_url`, are still accepted and
+keep their original names.
+
+The bundled snapshot comes from the ["Geoservicios_IDERA"
+spreadsheet](https://www.idera.gob.ar/index.php/servicios/geoservicios), the
+same source the ArgentinaGeoServices QGIS plugin reads, so both tools see the
+same endpoints.

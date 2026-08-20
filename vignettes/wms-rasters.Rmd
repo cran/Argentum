@@ -1,0 +1,149 @@
+---
+title: "Working with WMS rasters"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Working with WMS rasters}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+```{r setup}
+library(Argentum)
+library(terra)
+library(sf)
+```
+
+## Why WMS at all
+
+If WFS gives you real geometries, why ever ask for a picture?
+
+Three reasons, and they come up constantly with Argentine data.
+
+**Some layers only exist as WMS.** Satellite imagery, orthophotos, scanned
+historical charts and relief shading have no vector equivalent. The publisher
+has a raster; WMS is how they share it.
+
+**Some WFS layers are too heavy to be worth it.** A national parcel layer is
+millions of polygons. If you only need it as a visual backdrop, downloading
+the geometry is wasteful — ask the server to draw it instead.
+
+**The publisher's own cartography carries information.** A cadastral server
+renders parcels with the symbology its own staff use. Reproducing that from
+raw geometry is work you do not need to do.
+
+## The one required argument
+
+WMS has no concept of "the whole layer". Every request renders a fixed
+rectangle, so `bbox` is mandatory:
+
+```{r}
+ign <- "https://wms.ign.gob.ar/geoserver/ows"
+
+r <- argentum_read_wms(
+  ign,
+  layer = "ign:provincia",
+  bbox  = c(-59, -35, -57, -34),
+  width = 1000
+)
+
+r
+```
+
+A note on the IGN basemap: the official `capabaseargenmap` layer now
+answers `GetMap` requests from generic clients with HTTP 403 ("Bloqueado:
+uso de WMS en mapa base") - IGN reserves it for its own applications. The
+examples therefore use thematic layers, which remain open.
+
+Only `width` is given above; `height` is derived from the aspect ratio of the
+bounding box, so the map is not stretched. Give both if you want a specific
+canvas, or give only `height` if that is what your layout constrains.
+
+The `bbox` column of `argentum_layers()` gives you a starting extent when you
+do not know the layer's footprint:
+
+```{r}
+layers <- argentum_layers(ign, service = "wms")
+layers[layers$name == "ign:provincia", "bbox"]
+```
+
+## Combining raster and vector
+
+This is the payoff. The raster comes back with its CRS set, so it composes
+directly with anything you read over WFS:
+
+```{r}
+aoi <- c(-59, -35, -57, -34)
+
+basemap  <- argentum_read_wms(ign, "ign:provincia", bbox = aoi, width = 1200)
+boundaries <- argentum_read_wfs(ign, "ign:provincia", bbox = aoi, crs = 4326)
+
+terra::plotRGB(basemap)
+plot(sf::st_geometry(boundaries), add = TRUE, border = "white", lwd = 2)
+```
+
+Because `argentum_read_wms()` returns a plain `SpatRaster`, everything in
+`terra` works on it: `crop()`, `mask()`, `project()`, `writeRaster()`.
+
+## Stacking layers in one request
+
+Passing several layer names draws them in a single server-side composite,
+first at the bottom. One request instead of several, and the server handles
+the blending:
+
+```{r}
+argentum_read_wms(
+  ign,
+  layer = c("ign:provincia", "ign:limite_politico"),
+  bbox  = aoi
+)
+```
+
+## Legends
+
+A rendered map without its legend is often unreadable. `GetLegendGraphic`
+returns the symbology the server used:
+
+```{r}
+legend <- argentum_wms_legend(ign, "ign:provincia")
+terra::plotRGB(legend)
+```
+
+The legend is an image, not a map, so it carries no CRS.
+
+## Choosing a format
+
+`"image/png"` is the default and keeps transparency, which you need when
+overlaying. `"image/jpeg"` is meaningfully smaller for photographic imagery
+but cannot be transparent. `"image/tiff"` is worth requesting when you intend
+to analyse rather than display the pixels — though most servers still render
+to 8-bit RGB, so it is not a substitute for the underlying data.
+
+```{r}
+argentum_read_wms(ign, "some_orthophoto", bbox = aoi, format = "image/jpeg",
+                  transparent = FALSE)
+```
+
+## A note on axis order
+
+WMS 1.3.0 changed how coordinates are ordered: for CRSs whose authority
+definition is latitude-first, the `BBOX` parameter must be given
+latitude-first too. WMS 1.1.1 was always longitude-first.
+
+This trips people up badly, because getting it wrong does not produce an
+error — it produces a map of the wrong place, or of the ocean.
+
+`Argentum` handles the flip based on the version the server actually
+negotiated. It includes the Argentine Gauss-Krüger zones (EPSG:22171 through
+22175), which are defined northing-first and are therefore affected, a case
+most generic clients get wrong.
+
+You should never need to think about it. If you do hit a swapped map, force
+the older protocol and compare:
+
+```{r}
+argentum_capabilities(ign, "wms", version = "1.1.1")
+```

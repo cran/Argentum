@@ -1,0 +1,92 @@
+---
+title: "Migrating to 2.0"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Migrating to 2.0}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+## Loading the package
+
+```{r}
+library(Argentum)
+```
+
+The package name is unchanged: `library(Argentum)` works exactly as it did in
+1.x. Everything in 2.0 is a deprecation, not a break — old code runs and warns.
+
+## Function mapping
+
+| 1.x | 2.0 | Notes |
+|---|---|---|
+| `argentum_list_organizations()` | `argentum_organizations()` | Columns renamed to lower case |
+| — | `argentum_search_organizations()` | New |
+| `argentum_select_organization()` | `argentum_search_organizations()` | Or `argentum_browse()` for a menu |
+| `argentum_list_layers()` | `argentum_layers()` | Adds `abstract`, `crs`, `bbox`; works for WMS too |
+| `argentum_get_capabilities()` | `argentum_capabilities()` | Negotiates version; cached; printable |
+| `argentum_import_wfs_layer()` | `argentum_read_wfs()` | Adds `bbox`, `crs`, `filter`, `max_features`, paging |
+| `argentum_download_layers()` | `argentum_download()` | Failures are actually reported |
+| `argentum_interactive_import()` | `argentum_browse("read")` | |
+| `argentum_interactive_download()` | `argentum_browse("download")` | |
+| — | `argentum_read_wms()` | New |
+| — | `argentum_wms_legend()` | New |
+| — | `argentum_cache_path()`, `argentum_cache_clear()` | New |
+
+## Column names
+
+`argentum_organizations()` returns `name`, `category`, `organization`,
+`wms_url`, `wfs_url`. 1.x returned `Name`, `WMS_URL`, `WFS_URL`.
+
+Note that 2.1.0 changed this set again, replacing `category` with `level` and
+`jurisdiction` and adding `dependency`, `updated`, `wcs_url` and `csw_url`. See
+`NEWS.md` if you are coming from 1.x straight to 2.1.0.
+
+```{r}
+orgs <- argentum_list_organizations()   # 1.x names, still works
+orgs$Name
+
+orgs <- argentum_organizations()        # 2.0
+orgs$name
+```
+
+`argentum_layers()` returns `name` and `title` in lower case, plus three new
+columns. The deprecated `argentum_list_layers()` keeps the old `Name`/`Title`.
+
+## Behaviour that changed for the better
+
+**Downloads report their failures.** In 1.x, `argentum_download_layers()`
+assigned the error status inside its `tryCatch()` handler. Because the handler
+runs in its own frame, the assignment modified a copy that was then discarded:
+failed layers were written into the report as `"pending"`, and the closing
+summary printed zero errors. If you have been relying on that summary, expect
+it to start reporting failures that were always happening.
+
+**Arguments are validated.** Passing an organization name that does not exist
+now raises `argentum_error_unknown_org` with a suggestion, rather than
+producing a zero-row result you discover three steps later.
+
+**The catalogue survives its sources.** 1.x read five Datawrapper URLs with a
+version number in the path. When a chart was republished the URL 404'd and the
+package stopped working with no warning. 2.0 discovers the version at runtime
+and falls back to a snapshot shipped inside the package.
+
+**Requests are cached.** Scripts that called `argentum_list_organizations()`
+in a loop were downloading five CSVs per iteration.
+
+## Silencing the deprecation warnings
+
+They fire once per session per function, not once per call. If you want them
+gone before you have time to migrate:
+
+```{r}
+suppressWarnings(library(Argentum))
+options(warn = -1)  # blunt; prefer fixing the calls
+```
+
+Better, migrate incrementally — the two APIs coexist and can be mixed freely
+in the same script.
